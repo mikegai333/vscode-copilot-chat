@@ -77,7 +77,7 @@ export class CachingCompletionsFetchService extends CompletionsFetchService {
 		@IAuthenticationService authService: IAuthenticationService,
 		@IFetcherService fetcherService: IFetcherService,
 	) {
-		super(authService, fetcherService);
+		super(fetcherService);
 	}
 
 	public override async fetch(url: string, secretKey: string, params: IFetchRequestParams, requestId: string, ct: CancellationToken, headerOverrides?: Record<string, string>): Promise<Result<ResponseStream, fetcher.CompletionsFetchFailure>> {

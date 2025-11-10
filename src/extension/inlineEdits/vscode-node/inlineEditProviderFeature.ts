@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { commands, languages, window } from 'vscode';
-import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEnvService } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
@@ -17,7 +17,7 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { isNotebookCell } from '../../../util/common/notebooks';
 import { createTracer } from '../../../util/common/tracing';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
-import { autorun, derived, derivedDisposable, observableFromEvent } from '../../../util/vs/base/common/observable';
+import { autorun, derived, derivedDisposable } from '../../../util/vs/base/common/observable';
 import { join } from '../../../util/vs/base/common/path';
 import { URI } from '../../../util/vs/base/common/uri';
 import { Position } from '../../../util/vs/editor/common/core/position';
@@ -49,34 +49,17 @@ export class InlineEditProviderFeature extends Disposable implements IExtensionC
 	private readonly _enableCompletionsProvider = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.Internal.InlineEditsEnableCompletionsProvider, this._expService);
 	private readonly _yieldToCopilot = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.Internal.InlineEditsYieldToCopilot, this._expService);
 	private readonly _excludedProviders = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.Internal.InlineEditsExcludedProviders, this._expService).map(v => v ? v.split(',').map(v => v.trim()).filter(v => v !== '') : []);
-	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidAuthenticationChange, () => this._authenticationService.copilotToken);
-	private readonly _allowAnonymous = this._configurationService.getConfigObservable(ConfigKey.Internal.InlineEditsAllowAnonymous);
 
 	public readonly inlineEditsEnabled = derived(this, (reader) => {
-		const allowAnonymous = this._allowAnonymous.read(reader);
-		const copilotToken = this._copilotToken.read(reader);
-
-		// 如果允许匿名模式且配置了必要的API信息,即使没有token也可以启用
-		if (allowAnonymous) {
-			const apiUrl = this._configurationService.getConfig(ConfigKey.Internal.InlineEditsAnonymousApiUrl);
-			const apiKey = this._configurationService.getConfig(ConfigKey.Internal.InlineEditsAnonymousApiKey);
-			if (apiUrl && apiKey) {
-				return true;
-			}
-		}
-
-		// 原有的token检查逻辑
-		if (copilotToken === undefined) {
-			return false;
-		}
-		if (copilotToken.isCompletionsQuotaExceeded) {
-			return false;
-		}
-		return true;
+		// 直接检查API配置是否完整
+		const apiUrl = this._configurationService.getConfig(ConfigKey.Internal.InlineEditsAnonymousApiUrl);
+		const apiKey = this._configurationService.getConfig(ConfigKey.Internal.InlineEditsAnonymousApiKey);
+		return !!(apiUrl && apiKey);
 	});
 
 	private readonly _internalActionsEnabled = derived(this, (reader) => {
-		return !!this._copilotToken.read(reader)?.isInternal && !this._hideInternalInterface.read(reader);
+		// 简化：基于配置而不是token
+		return !this._hideInternalInterface.read(reader);
 	});
 
 	public readonly isInlineEditsLogFileEnabledObservable = this._configurationService.getConfigObservable(ConfigKey.Internal.InlineEditsLogContextRecorderEnabled);
@@ -88,7 +71,6 @@ export class InlineEditProviderFeature extends Disposable implements IExtensionC
 	constructor(
 		@IVSCodeExtensionContext private readonly _vscodeExtensionContext: IVSCodeExtensionContext,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IEnvService private readonly _envService: IEnvService,
 		@ILogService private readonly _logService: ILogService,
@@ -99,30 +81,13 @@ export class InlineEditProviderFeature extends Disposable implements IExtensionC
 
 		const tracer = createTracer(['NES', 'Feature'], (s) => this._logService.trace(s));
 		const constructorTracer = tracer.sub('constructor');
-		const hasUpdatedNesSettingKey = 'copilot.chat.nextEdits.hasEnabledNesInSettings';
+		// const hasUpdatedNesSettingKey = 'copilot.chat.nextEdits.hasEnabledNesInSettings';
 		const enableEnhancedNotebookNES = this._configurationService.getExperimentBasedConfig(ConfigKey.Internal.UseAlternativeNESNotebookFormat, _experimentationService) || this._configurationService.getExperimentBasedConfig(ConfigKey.UseAlternativeNESNotebookFormat, _experimentationService);
 		const unificationState = unificationStateObservable(this);
 
 		commands.executeCommand('setContext', useEnhancedNotebookNESContextKey, enableEnhancedNotebookNES);
 
-		this._register(autorun((reader) => {
-			const copilotToken = this._copilotToken.read(reader);
-
-			if (copilotToken === undefined) {
-				return;
-			}
-
-			if (
-				this._expService.getTreatmentVariable<boolean>('copilotchat.enableNesInSettings') &&
-				this._vscodeExtensionContext.globalState.get<boolean | undefined>(hasUpdatedNesSettingKey) !== true &&
-				!copilotToken.isFreeUser
-			) {
-				this._vscodeExtensionContext.globalState.update(hasUpdatedNesSettingKey, true);
-				if (!this._configurationService.isConfigured(ConfigKey.InlineEditsEnabled)) {
-					this._configurationService.setConfig(ConfigKey.InlineEditsEnabled, true);
-				}
-			}
-		}));
+		// 删除基于GitHub token的自动启用逻辑，改为用户手动配置
 
 		this._register(autorun(reader => {
 			if (!this.inlineEditsEnabled.read(reader)) { return; }

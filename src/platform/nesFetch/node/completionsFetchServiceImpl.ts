@@ -9,7 +9,7 @@ import { Result } from '../../../util/common/result';
 import { AsyncIterableObject } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { safeStringify } from '../../../util/vs/base/common/objects';
-import { IAuthenticationService } from '../../authentication/common/authentication';
+
 import { IFetcherService, IHeaders } from '../../networking/common/fetcherService';
 import { CompletionsFetchFailure, FetchOptions, ICompletionsFetchService, ModelParams } from '../common/completionsFetchService';
 import { ResponseStream } from '../common/responseStream';
@@ -28,7 +28,6 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 	readonly _serviceBrand: undefined;
 
 	constructor(
-		@IAuthenticationService private authService: IAuthenticationService,
 		@IFetcherService private fetcherService: IFetcherService,
 	) {
 	}
@@ -121,19 +120,7 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 				method: 'POST',
 			});
 
-			// 只有在有 copilotToken 的情况下才处理配额相关逻辑
-			if (this.authService.copilotToken) {
-				if (response.status === 200 && this.authService.copilotToken.isFreeUser && this.authService.copilotToken.isChatQuotaExceeded) {
-					this.authService.resetCopilotToken();
-				}
-
-				if (response.status !== 200 && response.status === 402) {
-					// When we receive a 402, we have exceed the free tier quota
-					// This is stored on the token so let's refresh it
-					this.authService.resetCopilotToken(response.status);
-					return Result.error<CompletionsFetchFailure>({ kind: 'quota-exceeded' });
-				}
-			}
+			// 删除GitHub配额检查逻辑，因为使用自己的API不需要检查配额
 
 			if (response.status !== 200) {
 

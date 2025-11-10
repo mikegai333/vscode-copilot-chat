@@ -12,7 +12,6 @@ import { toTextParts } from '../../../platform/chat/common/globalStringUtils';
 import { ConfigKey, ExperimentBasedConfig, IConfigurationService, XTabProviderId } from '../../../platform/configuration/common/configurationService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
-import { createProxyXtabEndpoint } from '../../../platform/endpoint/node/proxyXtabEndpoint';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { Copilot } from '../../../platform/inlineCompletions/common/api';
 import { LanguageContextEntry, LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
@@ -1276,36 +1275,19 @@ export class XtabProvider implements IStatelessNextEditProvider {
 	}
 
 	private getEndpoint(configuredModelName: string | undefined): { endpoint: ChatEndpoint; secretKey?: string } {
-		// 首先检查是否配置了匿名模式
-		const allowAnonymous = this.configService.getConfig(ConfigKey.Internal.InlineEditsAllowAnonymous);
-		if (allowAnonymous) {
-			const anonymousUrl = this.configService.getConfig(ConfigKey.Internal.InlineEditsAnonymousApiUrl);
-			const anonymousApiKey = this.configService.getConfig(ConfigKey.Internal.InlineEditsAnonymousApiKey);
-			const anonymousModelName = this.configService.getConfig(ConfigKey.Internal.InlineEditsAnonymousModelName);
+		// 直接使用配置的API信息，不再需要GitHub鉴权
+		const url = this.configService.getConfig(ConfigKey.Internal.InlineEditsAnonymousApiUrl);
+		const apiKey = this.configService.getConfig(ConfigKey.Internal.InlineEditsAnonymousApiKey);
+		const modelName = this.configService.getConfig(ConfigKey.Internal.InlineEditsAnonymousModelName);
 
-			if (anonymousUrl && anonymousApiKey) {
-				// 使用匿名模式的配置
-				return {
-					endpoint: this.instaService.createInstance(XtabEndpoint, anonymousUrl, anonymousApiKey, anonymousModelName || configuredModelName),
-					secretKey: anonymousApiKey
-				};
-			}
+		if (!url || !apiKey) {
+			throw new Error('请在设置中配置智能编辑API地址和密钥');
 		}
 
-		// 检查是否有Xtab Provider的URL和API Key配置
-		const url = this.configService.getConfig(ConfigKey.Internal.InlineEditsXtabProviderUrl);
-		const apiKey = this.configService.getConfig(ConfigKey.Internal.InlineEditsXtabProviderApiKey);
-		const hasOverriddenUrlAndApiKey = !!(url && apiKey);
-
-		if (hasOverriddenUrlAndApiKey) {
-			return {
-				endpoint: this.instaService.createInstance(XtabEndpoint, url, apiKey, configuredModelName),
-				secretKey: apiKey
-			};
-		}
-
-		// 默认使用代理端点(需要GitHub登录)
-		return { endpoint: createProxyXtabEndpoint(this.instaService, configuredModelName) };
+		return {
+			endpoint: this.instaService.createInstance(XtabEndpoint, url, apiKey, modelName || configuredModelName),
+			secretKey: apiKey
+		};
 	}
 
 	private getPredictedOutput(editWindowLines: string[], responseFormat: xtabPromptOptions.ResponseFormat): Prediction | undefined {

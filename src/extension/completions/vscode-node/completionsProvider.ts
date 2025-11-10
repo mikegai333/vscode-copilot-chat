@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken, InlineCompletionContext } from 'vscode';
-import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
@@ -13,7 +13,6 @@ import { ShowNextEditPreference } from '../../../platform/inlineEdits/common/sta
 import { ILogService } from '../../../platform/log/common/logService';
 import { Completion } from '../../../platform/nesFetch/common/completionsAPI';
 import { ICompletionsFetchService } from '../../../platform/nesFetch/common/completionsFetchService';
-import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { createTracer, ITracer } from '../../../util/common/tracing';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -33,10 +32,9 @@ export class CompletionsProvider extends Disposable {
 	constructor(
 		private workspace: ObservableWorkspace,
 		// @ICAPIClientService private apiClient: ICAPIClientService,
-		@IAuthenticationService private authService: IAuthenticationService,
 		@ICompletionsFetchService private fetchService: ICompletionsFetchService,
 		@IConfigurationService private configService: IConfigurationService,
-		@IExperimentationService private expService: IExperimentationService,
+		// @IExperimentationService private expService: IExperimentationService,
 		@ILogService private logService: ILogService,
 	) {
 		super();
@@ -81,30 +79,14 @@ export class CompletionsProvider extends Disposable {
 
 		const blockMode = BlockMode.ParsingAndServer;
 
-		let url = this.configService.getExperimentBasedConfig(ConfigKey.Internal.InlineEditsCompletionsUrl, this.expService);
-		let secretKey: string | undefined;
-		let modelName: string | undefined;
+		// 直接使用配置的API信息，不再需要GitHub鉴权
+		const url = this.configService.getConfig(ConfigKey.Internal.CompletionsProviderAnonymousApiUrl);
+		const secretKey = this.configService.getConfig(ConfigKey.Internal.CompletionsProviderAnonymousApiKey);
+		const modelName = this.configService.getConfig(ConfigKey.Internal.CompletionsProviderAnonymousModelName);
 
-		const allowAnonymous = this.configService.getConfig(ConfigKey.Internal.CompletionsProviderAllowAnonymous);
-
-		if (allowAnonymous) {
-			const anonymousUrl = this.configService.getConfig(ConfigKey.Internal.CompletionsProviderAnonymousApiUrl);
-			const anonymousApiKey = this.configService.getConfig(ConfigKey.Internal.CompletionsProviderAnonymousApiKey);
-			const anonymousModelName = this.configService.getConfig(ConfigKey.Internal.CompletionsProviderAnonymousModelName);
-			if (anonymousUrl && anonymousApiKey) {
-				url = anonymousUrl;
-				secretKey = anonymousApiKey;
-				modelName = anonymousModelName;
-			}
-		}
-
-		if (!url) {
-			this.tracer.throws('No completions URL configured');
-			throw new Error('No completions URL configured');
-		}
-
-		if (!secretKey) {
-			secretKey = (await this.authService.getCopilotToken()).token;
+		if (!url || !secretKey) {
+			this.tracer.throws('API配置未设置');
+			throw new Error('请在设置中配置API地址和密钥');
 		}
 		console.log(`普通补全，当前的模型为${modelName}`);
 		const r = await this.fetchService.fetch(
