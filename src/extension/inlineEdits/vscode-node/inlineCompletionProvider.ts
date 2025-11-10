@@ -143,9 +143,9 @@ export class InlineCompletionProviderImpl implements InlineCompletionItemProvide
 
 		const isCompletionsEnabled = this._isCompletionsEnabled(document);
 
-		const unification = this._configurationService.getExperimentBasedConfig(ConfigKey.Internal.InlineEditsUnification, this._expService);
+		const unification = true; //this._configurationService.getExperimentBasedConfig(ConfigKey.Internal.InlineEditsUnification, this._expService);
 
-		const isInlineEditsEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.InlineEditsEnabled, this._expService, { languageId: document.languageId });
+		const isInlineEditsEnabled = true; //this._configurationService.getExperimentBasedConfig(ConfigKey.InlineEditsEnabled, this._expService, { languageId: document.languageId });
 
 		const serveAsCompletionsProvider = unification && isCompletionsEnabled && !isInlineEditsEnabled;
 

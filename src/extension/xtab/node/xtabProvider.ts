@@ -232,7 +232,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		const promptOptions = this.determineModelConfiguration(activeDocument);
 
-		const endpoint = this.getEndpoint(promptOptions.modelName);
+		const { endpoint, secretKey } = this.getEndpoint(promptOptions.modelName);
 		logContext.setEndpointInfo(typeof endpoint.urlOrRequestMetadata === 'string' ? endpoint.urlOrRequestMetadata : JSON.stringify(endpoint.urlOrRequestMetadata.type), endpoint.model);
 		telemetryBuilder.setModelName(endpoint.model);
 
@@ -343,6 +343,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			request,
 			pushEdit,
 			endpoint,
+			secretKey,
 			messages,
 			editWindow,
 			editWindowLines,
@@ -546,6 +547,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		request: StatelessNextEditRequest,
 		pushEdit: PushEdit,
 		endpoint: IChatEndpoint,
+		secretKey: string | undefined,
 		messages: Raw.ChatMessage[],
 		editWindow: OffsetRange,
 		editWindowLines: string[],
@@ -610,6 +612,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					temperature: 0,
 					stream: true,
 					prediction,
+					secretKey,
 				} satisfies OptionalChatRequestParams,
 				userInitiatedRequest: undefined,
 				telemetryProperties: {
@@ -1272,16 +1275,37 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		return { enabled, maxTokens };
 	}
 
-	private getEndpoint(configuredModelName: string | undefined): ChatEndpoint {
-		const url = this.configService.getConfig(ConfigKey.Internal.InlineEditsXtabProviderUrl);
-		const apiKey = this.configService.getConfig(ConfigKey.Internal.InlineEditsXtabProviderApiKey);
-		const hasOverriddenUrlAndApiKey = url !== undefined && apiKey !== undefined;
+	private getEndpoint(configuredModelName: string | undefined): { endpoint: ChatEndpoint; secretKey?: string } {
+		// 首先检查是否配置了匿名模式
+		const allowAnonymous = this.configService.getConfig(ConfigKey.Internal.InlineEditsAllowAnonymous);
+		if (allowAnonymous) {
+			const anonymousUrl = this.configService.getConfig(ConfigKey.Internal.InlineEditsAnonymousApiUrl);
+			const anonymousApiKey = this.configService.getConfig(ConfigKey.Internal.InlineEditsAnonymousApiKey);
+			const anonymousModelName = this.configService.getConfig(ConfigKey.Internal.InlineEditsAnonymousModelName);
 
-		if (hasOverriddenUrlAndApiKey) {
-			return this.instaService.createInstance(XtabEndpoint, url, apiKey, configuredModelName);
+			if (anonymousUrl && anonymousApiKey) {
+				// 使用匿名模式的配置
+				return {
+					endpoint: this.instaService.createInstance(XtabEndpoint, anonymousUrl, anonymousApiKey, anonymousModelName || configuredModelName),
+					secretKey: anonymousApiKey
+				};
+			}
 		}
 
-		return createProxyXtabEndpoint(this.instaService, configuredModelName);
+		// 检查是否有Xtab Provider的URL和API Key配置
+		const url = this.configService.getConfig(ConfigKey.Internal.InlineEditsXtabProviderUrl);
+		const apiKey = this.configService.getConfig(ConfigKey.Internal.InlineEditsXtabProviderApiKey);
+		const hasOverriddenUrlAndApiKey = !!(url && apiKey);
+
+		if (hasOverriddenUrlAndApiKey) {
+			return {
+				endpoint: this.instaService.createInstance(XtabEndpoint, url, apiKey, configuredModelName),
+				secretKey: apiKey
+			};
+		}
+
+		// 默认使用代理端点(需要GitHub登录)
+		return { endpoint: createProxyXtabEndpoint(this.instaService, configuredModelName) };
 	}
 
 	private getPredictedOutput(editWindowLines: string[], responseFormat: xtabPromptOptions.ResponseFormat): Prediction | undefined {

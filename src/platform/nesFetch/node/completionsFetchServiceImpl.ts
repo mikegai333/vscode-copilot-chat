@@ -121,17 +121,21 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 				method: 'POST',
 			});
 
-			if (response.status === 200 && this.authService.copilotToken?.isFreeUser && this.authService.copilotToken?.isChatQuotaExceeded) {
-				this.authService.resetCopilotToken();
-			}
+			// 只有在有 copilotToken 的情况下才处理配额相关逻辑
+			if (this.authService.copilotToken) {
+				if (response.status === 200 && this.authService.copilotToken.isFreeUser && this.authService.copilotToken.isChatQuotaExceeded) {
+					this.authService.resetCopilotToken();
+				}
 
-			if (response.status !== 200) {
-				if (response.status === 402) {
+				if (response.status !== 200 && response.status === 402) {
 					// When we receive a 402, we have exceed the free tier quota
 					// This is stored on the token so let's refresh it
 					this.authService.resetCopilotToken(response.status);
 					return Result.error<CompletionsFetchFailure>({ kind: 'quota-exceeded' });
 				}
+			}
+
+			if (response.status !== 200) {
 
 				const error: CompletionsFetchFailure = {
 					kind: 'not-200-status',
@@ -217,11 +221,14 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/json',
 			'x-policy-id': 'nil',
-			Authorization: 'Bearer ' + secretKey,
 			'X-Request-Id': requestId,
 			'X-GitHub-Api-Version': '2025-04-01',
 			...headerOverrides,
 		};
+
+		if (!headers['Authorization']) {
+			headers['Authorization'] = 'Bearer ' + secretKey;
+		}
 
 		return headers;
 	}

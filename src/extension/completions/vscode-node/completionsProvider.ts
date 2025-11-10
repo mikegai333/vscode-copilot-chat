@@ -81,17 +81,37 @@ export class CompletionsProvider extends Disposable {
 
 		const blockMode = BlockMode.ParsingAndServer;
 
-		const url = this.configService.getExperimentBasedConfig(ConfigKey.Internal.InlineEditsCompletionsUrl, this.expService);
+		let url = this.configService.getExperimentBasedConfig(ConfigKey.Internal.InlineEditsCompletionsUrl, this.expService);
+		let secretKey: string | undefined;
+		let modelName: string | undefined;
+
+		const allowAnonymous = this.configService.getConfig(ConfigKey.Internal.CompletionsProviderAllowAnonymous);
+
+		if (allowAnonymous) {
+			const anonymousUrl = this.configService.getConfig(ConfigKey.Internal.CompletionsProviderAnonymousApiUrl);
+			const anonymousApiKey = this.configService.getConfig(ConfigKey.Internal.CompletionsProviderAnonymousApiKey);
+			const anonymousModelName = this.configService.getConfig(ConfigKey.Internal.CompletionsProviderAnonymousModelName);
+			if (anonymousUrl && anonymousApiKey) {
+				url = anonymousUrl;
+				secretKey = anonymousApiKey;
+				modelName = anonymousModelName;
+			}
+		}
 
 		if (!url) {
 			this.tracer.throws('No completions URL configured');
 			throw new Error('No completions URL configured');
 		}
 
+		if (!secretKey) {
+			secretKey = (await this.authService.getCopilotToken()).token;
+		}
+		console.log(`普通补全，当前的模型为${modelName}`);
 		const r = await this.fetchService.fetch(
-			url, // TODO@ulugbekna: use CAPIClient to make the fetch
-			(await this.authService.getCopilotToken()).token,
+			url,
+			secretKey,
 			{
+				model: modelName,
 				prompt: prefix,
 				suffix: suffix,
 				max_tokens: 500, // TODO@ulugbekna
@@ -120,6 +140,7 @@ export class CompletionsProvider extends Disposable {
 		);
 
 		if (r.isError()) {
+			console.log(`普通补全，报错信息${r}`);
 			return;
 		}
 

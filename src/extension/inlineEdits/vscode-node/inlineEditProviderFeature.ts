@@ -50,9 +50,22 @@ export class InlineEditProviderFeature extends Disposable implements IExtensionC
 	private readonly _yieldToCopilot = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.Internal.InlineEditsYieldToCopilot, this._expService);
 	private readonly _excludedProviders = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.Internal.InlineEditsExcludedProviders, this._expService).map(v => v ? v.split(',').map(v => v.trim()).filter(v => v !== '') : []);
 	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidAuthenticationChange, () => this._authenticationService.copilotToken);
+	private readonly _allowAnonymous = this._configurationService.getConfigObservable(ConfigKey.Internal.InlineEditsAllowAnonymous);
 
 	public readonly inlineEditsEnabled = derived(this, (reader) => {
+		const allowAnonymous = this._allowAnonymous.read(reader);
 		const copilotToken = this._copilotToken.read(reader);
+
+		// 如果允许匿名模式且配置了必要的API信息,即使没有token也可以启用
+		if (allowAnonymous) {
+			const apiUrl = this._configurationService.getConfig(ConfigKey.Internal.InlineEditsAnonymousApiUrl);
+			const apiKey = this._configurationService.getConfig(ConfigKey.Internal.InlineEditsAnonymousApiKey);
+			if (apiUrl && apiKey) {
+				return true;
+			}
+		}
+
+		// 原有的token检查逻辑
 		if (copilotToken === undefined) {
 			return false;
 		}

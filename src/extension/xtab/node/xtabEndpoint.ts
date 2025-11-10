@@ -5,7 +5,7 @@
 
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
-import { CHAT_MODEL, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { CHAT_MODEL, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { IChatModelInformation } from '../../../platform/endpoint/common/endpointProvider';
@@ -50,7 +50,7 @@ export class XtabEndpoint extends ChatEndpoint {
 		private readonly _url: string,
 		private readonly _apiKey: string,
 		_configuredModelName: string | undefined,
-		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IConfigurationService _configService: IConfigurationService,
 		@IDomainService _domainService: IDomainService,
 		@IFetcherService _fetcherService: IFetcherService,
 		@ICAPIClientService _capiClientService: ICAPIClientService,
@@ -80,20 +80,18 @@ export class XtabEndpoint extends ChatEndpoint {
 	}
 
 	override get urlOrRequestMetadata(): string {
-		return this._configService.getConfig(ConfigKey.Internal.InlineEditsXtabProviderUrl) || this._url;
+		return this._url;
 	}
 
 
 	public override getExtraHeaders(): Record<string, string> {
-		const apiKey = this._configService.getConfig(ConfigKey.Internal.InlineEditsXtabProviderApiKey) || this._apiKey;
-		if (!apiKey) {
-			const message = `Missing API key for custom URL (${this.urlOrRequestMetadata}). Provide the API key using vscode setting \`github.copilot.chat.advanced.inlineEdits.xtabProvider.apiKey\` or, if in simulations using \`--nes-api-key\` or \`--config-file\``;
+		if (!this._apiKey) {
+			const message = `Missing API key for custom URL (${this.urlOrRequestMetadata}).`;
 			console.error(message);
 			throw new Error(message);
 		}
 		return {
-			'Authorization': `Bearer ${apiKey}`,
-			'api-key': apiKey,
+			'Authorization': `Bearer ${this._apiKey}`,
 		};
 	}
 }
