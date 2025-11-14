@@ -50,8 +50,18 @@ export class VSCodeCopilotTokenManager extends BaseCopilotTokenManager {
 				this._logService.debug(`Got CopilotToken (force: ${force}).`);
 			} catch (e) {
 				this._logService.debug(`Getting CopilotToken (force: ${force}) threw error: ${e}`);
-				this.copilotToken = undefined;
-				throw e;
+				// 允许不登录使用（BYOK模式）- 返回一个空token而不是抛出错误
+				const emptyTokenInfo: ExtendedTokenInfo = {
+					token: '',
+					expires_at: Date.now() / 1000 + 3600,
+					refresh_in: 3600,
+					username: '',
+					isVscodeTeamMember: false,
+					copilot_plan: 'individual',
+					sku: 'no_auth_limited_copilot'
+				};
+				this.copilotToken = emptyTokenInfo;
+				this._logService.info('Using empty token for BYOK mode');
 			}
 		}
 		return new CopilotToken(this.copilotToken);

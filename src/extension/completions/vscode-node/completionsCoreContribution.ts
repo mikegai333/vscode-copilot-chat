@@ -37,7 +37,9 @@ export class CompletionsCoreContribution extends Disposable {
 			const configEnabled = configurationService.getExperimentBasedConfigObservable<boolean>(ConfigKey.Internal.InlineEditsEnableGhCompletionsProvider, experimentationService).read(reader);
 			const extensionUnification = unificationStateValue?.extensionUnification ?? false;
 
-			if (unificationStateValue?.codeUnification || extensionUnification || configEnabled || this._copilotToken.read(reader)?.isNoAuthUser) {
+			// 强制启用 - 用于测试
+			const forceEnabled = true;
+			if (forceEnabled || unificationStateValue?.codeUnification || extensionUnification || configEnabled || this._copilotToken.read(reader)?.isNoAuthUser) {
 				const provider = this._getOrCreateProvider();
 				reader.store.add(languages.registerInlineCompletionItemProvider({ pattern: '**' }, provider, { debounceDelayMs: 0, excludes: ['github.copilot'], groupId: 'completions' }));
 			}

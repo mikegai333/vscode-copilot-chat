@@ -111,11 +111,14 @@ export class CopilotInlineCompletionItemProvider extends Disposable implements I
 		const pendingRequestDeferred = new Deferred();
 		this.pendingRequests.add(pendingRequestDeferred.promise);
 
+		// 强制启用补全功能，允许不登录使用和自定义模型
+		const forceEnabled = true;
+
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic) {
-			if (!this.instantiationService.invokeFunction(isCompletionEnabledForDocument, doc)) {
+			if (!forceEnabled && !this.instantiationService.invokeFunction(isCompletionEnabledForDocument, doc)) {
 				return;
 			}
-			if (this.ctx.get(CopilotExtensionStatus).kind === 'Error') {
+			if (!forceEnabled && this.ctx.get(CopilotExtensionStatus).kind === 'Error') {
 				return;
 			}
 		}

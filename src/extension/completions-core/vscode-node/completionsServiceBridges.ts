@@ -154,7 +154,35 @@ export function createContext(serviceAccessor: ServicesAccessor): IInstantiation
 	ctx.set(TelemetryLogSender, new TelemetryLogSenderImpl());
 	ctx.set(TelemetryUserConfig, instantiationService.createInstance(TelemetryUserConfig));
 	ctx.set(UserErrorNotifier, new UserErrorNotifier());
-	ctx.set(OpenAIFetcher, new LiveOpenAIFetcher(instantiationService, ctx, runtimeMode));
+
+	// 创建支持自定义API的Fetcher
+	ctx.set(OpenAIFetcher, new class extends LiveOpenAIFetcher {
+		override async fetchWithParameters(
+			endpoint: string,
+			params: any,
+			copilotToken: any,
+			baseTelemetryData: any,
+			cancel?: any
+		): Promise<any> {
+			// 检查是否配置了自定义API
+			const customApiUrl = configurationService.getConfig(ConfigKey.Internal.CompletionsProviderAnonymousApiUrl);
+			const customApiKey = configurationService.getConfig(ConfigKey.Internal.CompletionsProviderAnonymousApiKey);
+			const customModelName = configurationService.getConfig(ConfigKey.Internal.CompletionsProviderAnonymousModelName);
+
+			// 如果配置了自定义API，传递配置
+			if (customApiUrl && customApiKey) {
+				return super.fetchWithParameters(endpoint, params, copilotToken, baseTelemetryData, cancel, {
+					url: customApiUrl,
+					apiKey: customApiKey,
+					modelName: customModelName
+				});
+			}
+
+			// 否则使用默认实现
+			return super.fetchWithParameters(endpoint, params, copilotToken, baseTelemetryData, cancel);
+		}
+	}(instantiationService, ctx, runtimeMode));
+
 	ctx.set(BlockModeConfig, new ConfigBlockModeConfig());
 	ctx.set(CompletionNotifier, instantiationService.createInstance(CompletionNotifier));
 	ctx.set(FileReader, instantiationService.createInstance(FileReader));

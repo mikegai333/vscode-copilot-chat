@@ -13,7 +13,7 @@ import { Features } from '../experiments/features';
 import { asyncIterableFilter, asyncIterableMap } from '../helpers/iterableHelpers';
 import { LogTarget, Logger } from '../logger';
 import { getEndpointUrl } from '../networkConfiguration';
-import { Response, isAbortError, postRequest } from '../networking';
+import { Fetcher, Response, isAbortError, postRequest } from '../networking';
 import { StatusReporter } from '../progress';
 import { Prompt } from '../prompt/prompt';
 import { MaybeRepoInfo, tryGetGitHubNWO } from '../prompt/repository';
@@ -26,6 +26,7 @@ import {
 	telemetry,
 } from '../telemetry';
 import { delay } from '../util/async';
+import { ICompletionsRuntimeModeService } from '../util/runtimeMode';
 import { getKey } from '../util/unknown';
 import {
 	APIChoice,
@@ -37,7 +38,6 @@ import {
 	getTopP,
 } from './openai';
 import { CopilotAnnotations, SSEProcessor, prepareSolutionForReturn } from './stream';
-import { ICompletionsRuntimeModeService } from '../util/runtimeMode';
 
 const logger = new Logger('fetchCompletions');
 
@@ -439,7 +439,25 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 		const statusReporter = this.completionsContextService.get(StatusReporter);
 		const endpoint = 'completions';
 		const tokenManager = this.completionsContextService.get(CopilotTokenManager);
-		const copilotToken = tokenManager.token ?? await tokenManager.getToken();
+
+		// 允许不登录使用（BYOK模式）
+		let copilotToken: CopilotToken;
+		try {
+			copilotToken = tokenManager.token ?? await tokenManager.getToken();
+		} catch (e) {
+			// 如果获取token失败，创建一个空token继续执行（用于BYOK）
+			const emptyTokenInfo = {
+				token: '',
+				expires_at: 0,
+				refresh_in: 0,
+				username: '',
+				isVscodeTeamMember: false,
+				copilot_plan: 'individual' as const,
+				sku: 'no_auth_limited_copilot'
+			};
+			copilotToken = new CopilotToken(emptyTokenInfo);
+		}
+
 		const response = await this.fetchWithParameters(endpoint, params, copilotToken, baseTelemetryData, cancel);
 		if (response === 'not-sent') {
 			return { type: 'canceled', reason: 'before fetch request' };
@@ -490,8 +508,15 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 		params: CompletionParams,
 		copilotToken: CopilotToken,
 		baseTelemetryData: TelemetryWithExp,
-		cancel?: ICancellationToken
+		cancel?: ICancellationToken,
+		customApiConfig?: { url: string; apiKey: string; modelName?: string }
 	): Promise<Response | 'not-sent'> {
+		// 如果传入了自定义API配置，使用自定义API
+		if (customApiConfig) {
+			return this.fetchWithCustomAPI(endpoint, params, customApiConfig.url, customApiConfig.apiKey, customApiConfig.modelName, baseTelemetryData, cancel);
+		}
+
+		// 否则使用默认的GitHub Copilot API
 		const disableLogProb = this.completionsContextService.get(Features).disableLogProb(baseTelemetryData);
 
 		const request: CompletionRequest = {
@@ -543,6 +568,74 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 			cancel,
 			params.headers
 		);
+		return response;
+	}
+
+	private async fetchWithCustomAPI(
+		endpoint: string,
+		params: CompletionParams,
+		apiUrl: string,
+		apiKey: string,
+		modelName: string | undefined,
+		baseTelemetryData: TelemetryWithExp,
+		cancel?: ICancellationToken
+	): Promise<Response | 'not-sent'> {
+		const ctx = this.completionsContextService;
+		const logTarget = ctx.get(LogTarget);
+
+		logger.info(logTarget, `使用自定义API: ${apiUrl}, 模型: ${modelName || '默认'}`);
+
+		const request: CompletionRequest = {
+			prompt: params.prompt.prefix,
+			suffix: params.prompt.suffix,
+			max_tokens: getMaxSolutionTokens(),
+			temperature: getTemperatureForSamples(this.runtimeModeService, params.count),
+			top_p: getTopP(),
+			n: params.count,
+			stop: getStops(params.languageId),
+			stream: true,
+			extra: params.extra,
+		};
+
+		if (params.postOptions) {
+			Object.assign(request, params.postOptions);
+		}
+
+		if (params.prompt.context && params.prompt.context.length > 0) {
+			request.extra.context = params.prompt.context;
+		}
+
+		await delay(0);
+		if (cancel?.isCancellationRequested) {
+			return 'not-sent';
+		}
+
+		// 构建自定义API请求
+		const customRequest: Record<string, unknown> = {
+			model: modelName || 'gpt-3.5-turbo',
+			prompt: request.prompt,
+			suffix: request.suffix,
+			max_tokens: request.max_tokens,
+			temperature: request.temperature,
+			top_p: request.top_p,
+			n: request.n,
+			stop: request.stop,
+			stream: request.stream,
+		};
+
+		// 使用Fetcher直接发送请求到自定义API
+		const response = await this.instantiationService.invokeFunction(async (accessor) => {
+			const fetcher = ctx.get(Fetcher);
+			return fetcher.fetch(apiUrl, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${apiKey}`,
+				},
+				body: JSON.stringify(customRequest),
+			});
+		});
+
 		return response;
 	}
 
