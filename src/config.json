@@ -1,0 +1,12 @@
+{
+	"github.copilot.chat.advanced.inlineEdits.allowAnonymous": true,
+	"github.copilot.chat.advanced.inlineEdits.anonymousApiUrl": "https://openrouter.ai/api/v1/chat/completions",
+	"github.copilot.chat.advanced.inlineEdits.anonymousApiKey": "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",
+	"github.copilot.chat.advanced.inlineEdits.anonymousModelName": "openai/gpt-4.1-nano",
+	// "github.copilot.chat.advanced.inlineEdits.completionsProvider.enabled": true,
+
+	"github.copilot.chat.advanced.completionsProvider.allowAnonymous": true,
+	"github.copilot.chat.advanced.completionsProvider.anonymousApiUrl": "https://openrouter.ai/api/v1/chat/completions",
+	"github.copilot.chat.advanced.completionsProvider.anonymousApiKey": "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",
+	"github.copilot.chat.advanced.completionsProvider.anonymousModelName": "deepseek/deepseek-chat-v3-0324"
+}
