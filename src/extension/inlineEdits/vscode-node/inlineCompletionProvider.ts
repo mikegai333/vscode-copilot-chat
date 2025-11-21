@@ -183,6 +183,16 @@ export class InlineCompletionProviderImpl implements InlineCompletionItemProvide
 
 			let [providerSuggestion, diagnosticsSuggestion, completionAtCursor] = await first;
 
+			if (providerSuggestion) {
+				console.log('Provider suggestion:', providerSuggestion);
+			} else if (diagnosticsSuggestion) {
+				console.log('Diagnostics suggestion:', diagnosticsSuggestion);
+			} else if (completionAtCursor) {
+				console.log('Completion at cursor suggestion:', completionAtCursor);
+			} else {
+				console.log('No suggestions received from any provider.');
+			}
+
 			// ensure completions promise resolves
 			completionsCts.cancel();
 

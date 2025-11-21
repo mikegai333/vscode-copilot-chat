@@ -15,7 +15,7 @@ import { autorunWithChanges } from '../../../platform/inlineEdits/common/utils/o
 import { DocumentHistory, HistoryContext, IHistoryContextProvider } from '../../../platform/inlineEdits/common/workspaceEditTracker/historyContextProvider';
 import { NesXtabHistoryTracker } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ILogService } from '../../../platform/log/common/logService';
-import { ISnippyService } from '../../../platform/snippy/common/snippyService';
+// import { ISnippyService } from '../../../platform/snippy/common/snippyService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import * as errors from '../../../util/common/errors';
 import { Result } from '../../../util/common/result';
@@ -93,7 +93,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		private readonly _xtabHistoryTracker: NesXtabHistoryTracker,
 		private readonly _debugRecorder: DebugRecorder | undefined,
 		@IConfigurationService private readonly _configService: IConfigurationService,
-		@ISnippyService private readonly _snippyService: ISnippyService,
+		// @ISnippyService private readonly _snippyService: ISnippyService,
 		@ILogService private readonly _logService: ILogService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
 	) {
@@ -816,7 +816,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		if (suggestion.result === undefined) {
 			return;
 		}
-		this._snippyService.handlePostInsertion(docId.toUri(), suggestion.result.documentBeforeEdits, suggestion.result.edit);
+		// this._snippyService.handlePostInsertion(docId.toUri(), suggestion.result.documentBeforeEdits, suggestion.result.edit);
 	}
 
 	public clearCache() {

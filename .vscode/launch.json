@@ -11,6 +11,15 @@
 			],
 			"smartStep": true,
 			"sourceMaps": true,
+			"resolveSourceMapLocations": [
+				"${workspaceFolder}/**",
+				"!**/node_modules/**"
+			],
+			"sourceMapPathOverrides": {
+				"webpack:///./*": "${workspaceFolder}/*",
+				"webpack:///*": "*",
+				"webpack:///./~/*": "${workspaceFolder}/node_modules/*"
+			},
 			"envFile": "${workspaceFolder}/.env",
 			"env": {
 				"COPILOT_LOG_TELEMETRY": "true",
@@ -34,6 +43,15 @@
 			],
 			"smartStep": true,
 			"sourceMaps": true,
+			"resolveSourceMapLocations": [
+				"${workspaceFolder}/**",
+				"!**/node_modules/**"
+			],
+			"sourceMapPathOverrides": {
+				"webpack:///./*": "${workspaceFolder}/*",
+				"webpack:///*": "*",
+				"webpack:///./~/*": "${workspaceFolder}/node_modules/*"
+			},
 			"preLaunchTask": "watch",
 			"env": {
 				"COPILOT_LOG_TELEMETRY": "true",

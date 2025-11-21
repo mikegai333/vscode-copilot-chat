@@ -21,7 +21,7 @@ const baseBuildOptions = {
 	minify: !isDev,
 	outdir: './dist',
 	sourcemap: isDev ? 'linked' : false,
-	sourcesContent: false,
+	sourcesContent: true,
 	treeShaking: true
 } satisfies esbuild.BuildOptions;
 
@@ -270,7 +270,7 @@ const typeScriptServerPluginBuildOptions = {
 	outdir: './node_modules/@vscode/copilot-typescript-server-plugin/dist',
 	platform: 'node',
 	sourcemap: isDev ? 'linked' : false,
-	sourcesContent: false,
+	sourcesContent: true,
 	treeShaking: true,
 	external: [
 		"typescript",
